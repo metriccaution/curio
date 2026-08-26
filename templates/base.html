@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}Inspiration Images{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --bg-alt: #1b1b1d;
+      --bg-input: #202022;
+      --border: #333336;
+      --text: #e8e6e3;
+      --text-muted: #97948e;
+      --accent: #f5c518;
+      --accent-hover: #ffdb4d;
+      --accent-text: #14140f;
+    }
+
+    html, body { background: var(--bg); }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      margin: 0 auto;
+      padding: 2rem;
+      max-width: 1100px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+    header { margin-bottom: 1.5rem; }
+    header a { font-weight: 600; }
+
+    h1 {
+      margin-top: 0;
+      display: inline-block;
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 0.3rem;
+    }
+    h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    section { margin-bottom: 2.5rem; }
+
+    textarea, input[type="url"], input[type="text"] {
+      font: inherit;
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+    textarea:focus, input[type="url"]:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    button {
+      font: inherit;
+      font-weight: 600;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 4px;
+      padding: 0.45rem 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.btn-remove {
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 400;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--border);
+    }
+    button.btn-remove:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: transparent;
+    }
+    button:disabled, input:disabled, textarea:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    #sync-banner {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    ul { padding-left: 0; list-style: none; }
+    li { margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    form.inline { display: inline; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+    tbody tr:hover { background: var(--bg-alt); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .grid figure { margin: 0; }
+    .grid a { display: block; }
+    .grid img, .grid video {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 6px;
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+    }
+    .grid figcaption {
+      margin-top: 0.35rem;
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .add-form { margin-top: 1rem; display: flex; gap: 0.5rem; }
+    .add-form input { flex: 1; }
+    .orphan { color: var(--text-muted); font-style: italic; font-size: 0.85rem; }
+    .pager {
+      margin-top: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="{{ request.url_for('index') }}">Subjects</a>
+    &middot;
+    <a href="{{ request.url_for('gallery') }}">Gallery</a>
+  </header>
+  {% block content %}{% endblock %}
+</body>
+</html>

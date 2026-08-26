@@ -1,0 +1,11 @@
+Pillow
+pillow-avif-plugin
+requests
+imagehash
+pydantic
+pyyaml
+yt-dlp
+fastapi
+uvicorn
+jinja2
+python-multipart

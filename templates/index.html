@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Subjects{% endblock %}
+{% block content %}
+<h1>Subjects</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Images</th>
+      <th>Videos</th>
+      <th>References</th>
+      <th>Updated</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for subject in subjects %}
+    <tr>
+      <td><a href="{{ request.url_for('subject_detail', name=subject.dir_name) }}">{{ subject.name }}</a></td>
+      <td>{{ subject.image_count }}</td>
+      <td>{{ subject.video_count }}</td>
+      <td>{{ subject.reference_count }}</td>
+      <td class="orphan">{{ subject.updated_at.strftime("%Y-%m-%d %H:%M") ~ " UTC" if subject.updated_at else "" }}</td>
+      <td>
+        <form class="inline" method="post" action="{{ request.url_for('archive_subject_route', name=subject.dir_name) }}"
+          onsubmit="return confirm('Archive {{ subject.name }}? This zips its directory and removes it from this list.');">
+          <button type="submit" class="btn-remove">Archive</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="6">No subjects found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<section>
+  <h2>Add subject</h2>
+  <form class="add-form" method="post" action="{{ request.url_for('add_subject') }}">
+    <input type="text" name="name" placeholder="Subject name" required>
+    <button type="submit">Add subject</button>
+  </form>
+</section>
+{% endblock %}
