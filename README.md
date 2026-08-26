@@ -5,6 +5,8 @@ A small tool for gathering reference images / videos for creative projects. Its 
 - Inspiration for painting Warhammer
 - Reference images for D&D, especially via virtual tabletops
 
+![Example screenshot](docs/ui.png)
+
 ## Structure
 
 - The tool works on a directory (defaults to `./subjects`), within which is a directory per "subject"
