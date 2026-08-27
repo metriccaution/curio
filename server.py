@@ -23,7 +23,9 @@ SUBJECTS_DIR.mkdir(exist_ok=True, parents=True)
 INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 SYNC_DEBOUNCE_SECONDS = 3
 VIDEO_GLOBS = ("*.mp4", "*.webm", "*.mkv", "*.mov", "*.m4v", "*.avi", "*.flv")
-_CACHEABLE_SUFFIXES = {Path(g).suffix for g in (*IMAGE_GLOBS, *VIDEO_GLOBS)}
+# Sync never downloads gifs (see InvalidFormatException), but they're sometimes hand-collected format.
+DISPLAY_IMAGE_GLOBS = (*IMAGE_GLOBS, "*.gif")
+_CACHEABLE_SUFFIXES = {Path(g).suffix for g in (*DISPLAY_IMAGE_GLOBS, *VIDEO_GLOBS)}
 
 
 class MediaFiles(StaticFiles):
@@ -73,7 +75,7 @@ def cached_media(subject: Subject) -> _MediaCacheEntry:
         yaml_mtime=yaml_mtime,
         image_paths=sorted(
             (p, p.stat().st_mtime)
-            for glob in IMAGE_GLOBS
+            for glob in DISPLAY_IMAGE_GLOBS
             for p in subject.directory.glob(glob)
         ),
         video_paths=sorted(
@@ -260,7 +262,7 @@ def subject_detail(request: Request, name: str):
     subject = get_subject_or_404(name)
     subject_dir = subject.directory
     image_entries = build_media_entries(
-        subject.images, subject_dir, request, IMAGE_GLOBS
+        subject.images, subject_dir, request, DISPLAY_IMAGE_GLOBS
     )
     video_entries = build_media_entries(
         subject.videos, subject_dir, request, VIDEO_GLOBS
@@ -392,7 +394,7 @@ async def remove_orphan_file(name: str, filename: str = Form(...)):
         path = subject.directory / filename
         if (
             Path(filename).name != filename
-            or not any(path.match(g) for g in (*IMAGE_GLOBS, *VIDEO_GLOBS))
+            or not any(path.match(g) for g in (*DISPLAY_IMAGE_GLOBS, *VIDEO_GLOBS))
             or not path.is_file()
         ):
             raise HTTPException(status_code=400, detail="Invalid file")
