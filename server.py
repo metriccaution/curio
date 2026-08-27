@@ -7,6 +7,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from lib import (
     IMAGE_GLOBS,
@@ -22,15 +23,67 @@ SUBJECTS_DIR.mkdir(exist_ok=True, parents=True)
 INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 SYNC_DEBOUNCE_SECONDS = 3
 VIDEO_GLOBS = ("*.mp4", "*.webm", "*.mkv", "*.mov", "*.m4v", "*.avi", "*.flv")
+_CACHEABLE_SUFFIXES = {Path(g).suffix for g in (*IMAGE_GLOBS, *VIDEO_GLOBS)}
+
+
+class MediaFiles(StaticFiles):
+    """StaticFiles, plus a far-future Cache-Control on image/video files - immutable once downloaded."""
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if Path(full_path).suffix in _CACHEABLE_SUFFIXES:
+            response.headers["cache-control"] = "public, max-age=31536000, immutable"
+        return response
+
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-app.mount("/media", StaticFiles(directory=SUBJECTS_DIR), name="media")
+app.mount("/media", MediaFiles(directory=SUBJECTS_DIR), name="media")
 
 # Debounce state lives in-process, so it only works with a single uvicorn worker. Keyed by subject dir name.
 _pending_image_syncs: dict[str, asyncio.Task] = {}
 _pending_video_syncs: dict[str, asyncio.Task] = {}
 _subject_locks: dict[str, asyncio.Lock] = {}
+
+# Index/gallery caches, keyed by subject dir name; a subject refreshes when its YAML mtime changes.
+_subject_cache: dict[str, tuple[float, Subject]] = {}
+_media_cache: dict[str, "_MediaCacheEntry"] = {}
+
+
+class _MediaCacheEntry(BaseModel):
+    yaml_mtime: float
+    image_paths: list[tuple[Path, float]]  # (path, file mtime)
+    video_paths: list[tuple[Path, float]]
+
+
+def cached_subjects() -> list[Subject]:
+    """find_subjects(), cached via `_subject_cache`."""
+    return list(find_subjects(SUBJECTS_DIR, cache=_subject_cache))
+
+
+def cached_media(subject: Subject) -> _MediaCacheEntry:
+    """On-disk image/video paths and mtimes for `subject`, recomputed only when its YAML mtime changes."""
+    name = subject.directory.name
+    yaml_mtime = subject.updated_at.timestamp() if subject.updated_at else 0.0
+    cached = _media_cache.get(name)
+    if cached is not None and cached.yaml_mtime == yaml_mtime:
+        return cached
+
+    entry = _MediaCacheEntry(
+        yaml_mtime=yaml_mtime,
+        image_paths=sorted(
+            (p, p.stat().st_mtime)
+            for glob in IMAGE_GLOBS
+            for p in subject.directory.glob(glob)
+        ),
+        video_paths=sorted(
+            (p, p.stat().st_mtime)
+            for glob in VIDEO_GLOBS
+            for p in subject.directory.glob(glob)
+        ),
+    )
+    _media_cache[name] = entry
+    return entry
 
 
 def sanitize_subject_name(name: str) -> str:
@@ -71,10 +124,14 @@ GALLERY_PAGE_SIZE = 60
 def gallery_entries(request: Request) -> list[dict]:
     """All images/videos across every subject, newest file (by mtime) first."""
     entries = []
-    for subject in find_subjects(SUBJECTS_DIR):
+    for subject in cached_subjects():
         subject_dir = subject.directory
-        for kind, globs in (("image", IMAGE_GLOBS), ("video", VIDEO_GLOBS)):
-            for path in (p for glob in globs for p in subject_dir.glob(glob)):
+        media = cached_media(subject)
+        for kind, paths in (
+            ("image", media.image_paths),
+            ("video", media.video_paths),
+        ):
+            for path, mtime in paths:
                 entries.append(
                     {
                         "kind": kind,
@@ -88,7 +145,7 @@ def gallery_entries(request: Request) -> list[dict]:
                         "subject_url": str(
                             request.url_for("subject_detail", name=subject_dir.name)
                         ),
-                        "mtime": path.stat().st_mtime,
+                        "mtime": mtime,
                     }
                 )
     entries.sort(key=lambda e: e["mtime"], reverse=True)
@@ -149,16 +206,14 @@ def schedule_sync(
 @app.get("/")
 def index(request: Request):
     subjects = []
-    for subject in find_subjects(SUBJECTS_DIR):
-        subject_dir = subject.directory
-        image_count = sum(1 for glob in IMAGE_GLOBS for _ in subject_dir.glob(glob))
-        video_count = sum(1 for glob in VIDEO_GLOBS for _ in subject_dir.glob(glob))
+    for subject in cached_subjects():
+        media = cached_media(subject)
         subjects.append(
             {
                 "name": subject.name,
-                "dir_name": subject_dir.name,
-                "image_count": image_count,
-                "video_count": video_count,
+                "dir_name": subject.directory.name,
+                "image_count": len(media.image_paths),
+                "video_count": len(media.video_paths),
                 "reference_count": len(subject.references),
                 "created_at": subject.created_at,
                 "updated_at": subject.updated_at,
@@ -325,6 +380,7 @@ async def archive_subject_route(name: str):
             archive_subject(subject)
         except FileExistsError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+        _media_cache.pop(name, None)
     return RedirectResponse(url="/", status_code=303)
 
 

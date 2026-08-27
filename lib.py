@@ -115,23 +115,56 @@ class Subject(BaseModel):
         self.videos = await video_downloader(self.directory, self.videos)
 
 
-def find_subjects(subject_dir: Path) -> Generator[Subject, None, None]:
-    """Yields each subdirectory's Subject; scaffolds subject.yaml if missing, skips ambiguous ones."""
+def find_subjects(
+    subject_dir: Path,
+    cache: dict[str, tuple[float, Subject]] | None = None,
+) -> Generator[Subject, None, None]:
+    """Yields each subdirectory's Subject; skips ambiguous dirs, scaffolds missing ones. `cache`
+    skips reparsing unchanged dirs (based on YAML file mtime).
+    """
 
+    if cache is None:
+        cache = {}
+
+    live_names = set()
     for subdir in subject_dir.iterdir():
         if not subdir.is_dir():
             continue
+        live_names.add(subdir.name)
 
-        if not any(subdir.glob("*.yaml")):
+        try:
+            yaml_file = Subject._find_yaml_file(subdir)
+        except ValueError:
+            cache.pop(subdir.name, None)
+            continue
+
+        if yaml_file is None:
             new_subject = Subject(name=subdir.stem, directory=subdir)
             new_subject.save()
+            yaml_file = Subject._find_yaml_file(subdir)
+            cache[subdir.name] = (yaml_file.stat().st_mtime, new_subject)
             yield new_subject
             continue
 
+        mtime = yaml_file.stat().st_mtime
+        cached = cache.get(subdir.name)
+        if cached is not None and cached[0] == mtime:
+            yield cached[1]
+            continue
+
         try:
-            yield Subject.from_directory(subdir)
+            subject = Subject.from_directory(subdir)
         except ValueError as e:
             print(f"{e}, skipping")
+            cache.pop(subdir.name, None)
+            continue
+
+        cache[subdir.name] = (mtime, subject)
+        yield subject
+
+    for name in list(cache):
+        if name not in live_names:
+            del cache[name]
 
 
 def archive_subject(subject: Subject) -> Path:
